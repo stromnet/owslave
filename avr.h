@@ -53,9 +53,15 @@ typedef unsigned char timer_t;
  *	#define T_SAMPLE T_(37)-11
  * #endif
  * ... these fallbacks may be invalid
+ *
+ * Master-device DS2480b PDF says to sample between 8+3us=11us up
+ * to +60-11us=49us after low edge. Thus, try to sample 11-49us after low edge.
  */
 #ifndef T_SAMPLE
-#if F_CPU >= 12000000
+#if F_CPU >= 16000000
+	#define T_SAMPLE T_(20)		// 20uS => 5 ticks = exact 20uS.
+	#define T_XMIT T_(24)		// default T(60)-4=44uS... a bit too high. aim for 24uS
+#elif F_CPU >= 12000000
 	#define T_SAMPLE T_(15)-1
 #elif F_CPU > 9600000
 	#define T_SAMPLE T_(15)-2
@@ -63,7 +69,10 @@ typedef unsigned char timer_t;
 	#warning "This will probably only work for relatively slow masters!"
 	#define T_SAMPLE T_(25)-1	// only tested for atmega32, works but out of specification!
 #endif
+
+#ifndef T_XMIT
 #define T_XMIT T_(60)-4			// overhead (measured w/ scope on ATmega168)
+#endif
 #endif
 
 // check timing setup, T_RESET depends on timer size (8bits for AVR)
@@ -166,6 +175,7 @@ static inline void AVR_ATmega8_setup(void)
 
 static inline void AVR_ATmega8_mask_owpin(void) { GIMSK &= ~(1 << INT0); }
 static inline void AVR_ATmega8_unmask_owpin(void) { GIFR |= (1 << INTF0); GIMSK |= (1 << INT0); }
+
 static inline void AVR_ATmega8_set_owtimeout(timer_t timeout)
 {
 	TCNT0 = ~timeout;	// overrun at 0xFF
