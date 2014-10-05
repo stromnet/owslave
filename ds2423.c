@@ -67,6 +67,19 @@ u_char debug_state;
 #define ADMSK PCMSK1
 #define ADIRQ
 #define ADLARMUX (1<<ADLAR)
+#elif defined (__AVR_ATmega8__)
+# define IFR	EIFR
+# define IMSK EIMSK
+# ifdef ANALOG
+#  define ADPIN PINC
+#  define ADLARMUX (1<<ADLAR)
+# else
+// The mega8 has only no pinchange interrupts; only specific pins.
+// Thus in digital mode, only 1 pin supported by using INT1 (PD3); 1 counter
+// XXX: Not well tested..
+#  define ADPIN ((PIND & 0x08) >> 3)
+#  define ADPIN_vect INT1_vect
+# endif
 #else
 #warning "Where is the ADLAR bit?"
 #define NO_ADLAR
@@ -75,7 +88,9 @@ u_char debug_state;
 
 #ifdef ANALOG
 // Minimal hysteresis between hi and lo states
-#define HYST 100 // initial hysteresis; approx. 500 mV
+//#define HYST 100 // initial hysteresis; approx. 500 mV
+#define HYST 300 // somewhat higher hysteresis; approx. 1500 mV (AVR: (1.5*1024)/5.0 = 307
+
 // At 8 KHz sampling rate (approx), 1/10th second should be enough 
 //#define SLOW 4 // decay filter for lowpass-filtering
 
@@ -96,6 +111,7 @@ static u_char obits,cbits;
 #endif
 static uint32_t counter[NCOUNTERS];
 static u_char unchecked;
+static uint8_t alarm;
 
 static u_char byte_at(u_short adr)
 {
@@ -202,6 +218,7 @@ void do_command(u_char cmd)
 {
 	if(cmd == C_READ_MEM_COUNTER) {
 		DBG_P(":I");
+		alarm = 0;
 		do_mem_counter();
 	} else {
 		DBG_P("?CI");
@@ -278,18 +295,22 @@ void check_adc(void)
 	DBG_P("res="); DBG_Y(res); DBG_P(" bstate="); DBG_X(bstate); DBG_P(" last="); DBG_Y(last[cur]); DBG_P(" hyst="); DBG_Y(hyst[cur]); DBG_C('\n');
 #endif
 	if(!(bstate&(1<<cur))) {
-		if (res < last[cur]) {
+		// Last NOT "high"
+		if (res < last[cur]) { // Lower than last;
 			last[cur] = res;
-		} else if (res > hyst[cur]+last[cur]) {
+		} else if (res > hyst[cur]+last[cur]) { // higher than last + hyst
 			bstate |= (1<<cur);
-			if(samples)
+//			if(samples) {
 				counter[cur]++;
+				alarm = 1;
+//			}
 			last[cur] = res;
 		}
 	} else {
-		if (res > last[cur])
+		// Wait for low.
+		if (res > last[cur]) // Not lower than last
 			last[cur] = res;
-		else if(res+hyst[cur] < last[cur]) {
+		else if(res+hyst[cur] < last[cur]) { // lower than last - hyst
 			bstate &= ~(1<<cur);
 			last[cur] = res;
 		}
@@ -332,9 +353,14 @@ ISR(ADPIN_vect)
 }
 #endif
 
+uint8_t is_alarm(void) {
+	return alarm;
+}
+
 void update_idle(u_char bits)
 {
 	//DBG_C('\\');
+
 	if(bits > 0 || unchecked > 100)
 		check_adc();
 	else if((ADCSRA & (1<<ADIF)) && (unchecked < 0xFF))
@@ -361,6 +387,7 @@ void update_idle(u_char bits)
 
 void init_state(void)
 {
+	alarm = 1; // By default we're in alarm until we've been read.
 #ifdef ANALOG
 	u_char i;
 #endif
@@ -375,7 +402,11 @@ void init_state(void)
 	}
 
 	ADMUX = 0b1110 | (1<<REFS0) | ADLARMUX; // 5V ref
+#ifdef DIDR0
+	// Not supported on Mega8
 	DIDR0 = (1<<NCOUNTERS)-1;
+#endif
+
 
 #if F_CPU >= 12800000 // prescale AD clock to <= 200 KHz
 #define CLK_A 7
@@ -392,12 +423,23 @@ void init_state(void)
 
 	cur_adc = 0;
 	bstate = 0;
+	samples = 0;
 	start_adc();
+#else // !ANALOG
+#ifdef __AVR_ATmega8__
+	// single pin only
+	// XXX: not (well) tested.. use analog instead
+	obits = ADPIN;
+	MCUCR |= (1<< ISC11); // falling edge on INT1
+	GICR |= (1<<INT1); // Enable int1
+	DDRD &= ~(1 << PIND3); // PD3/int1 as input
+	PORTD |= (1 << PIND3); // ..with pullup
 #else
 	obits = ADPIN;
 	ADMSK = (1<<NCOUNTERS)-1;
 	IFR |= (1<<PCIF0);
 	IMSK |= (1<<PCIE0);
+#endif
 #endif
 }
 
