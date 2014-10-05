@@ -5,6 +5,7 @@
 #MCU=atmega168
 MCU=atmega32		# ds2423.c won't compile
 
+MAKE=gmake
 
 #MCU_PROG=m168
 MCU_PROG=m32
@@ -16,6 +17,7 @@ ARCH=avr
 CC=$(ARCH)-gcc
 OBJCOPY=$(ARCH)-objcopy
 OBJDUMP=$(ARCH)-objdump
+OBJSIZE=$(ARCH)-size
 
 #-------------------
 help: 
@@ -32,13 +34,13 @@ DEVNAME=ds2408
 all: $(DEVNAME).hex $(DEVNAME).lss $(DEVNAME).bin
 
 ds2408 ds2423:
-	 @make $@_dev
+	 @$(MAKE) $@_dev
 
 %_burn: %_dev
-	@make DEVNAME=$(subst _burn,,$@) DEVCODE=$($(subst _burn,,$@)_CODE) burn
+	@$(MAKE) DEVNAME=$(subst _burn,,$@) DEVCODE=$($(subst _burn,,$@)_CODE) burn
 
 %_dev:
-	@make DEVNAME=$(subst _dev,,$@) all
+	@$(MAKE) DEVNAME=$(subst _dev,,$@) all
 
 # optimize for size!
 ifeq ($(ARCH),avr)
@@ -56,6 +58,10 @@ $(DEVNAME).out : onewire.o $(DEVNAME).o $(UART)
 	$(CC) $(CFLAGS) -o $@ -Wl,-Map,$(DEVNAME).map,--cref $^
 $(DEVNAME).hex : $(DEVNAME).out 
 	$(OBJCOPY) -R .eeprom -O ihex $< $@
+	@echo ""
+	@echo -n "Flash size: "
+	@$(OBJSIZE) $< | grep  -vE 'text.+data'|cut -f1,2|tr -d ' '|tr '\t' '+'|bc 
+	@echo ""
 $(DEVNAME).lss : $(DEVNAME).out 
 	$(OBJDUMP) -h -S $< > $@
 $(DEVNAME).bin : $(DEVNAME).out 
