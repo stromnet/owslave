@@ -483,7 +483,11 @@ OW_TIMER_ISR()
 		}
 		else
 #ifndef SKIP_SEARCH
-		if (transbyte == 0xF0) {
+		if (transbyte == 0xF0
+#ifndef SKIP_SEARCHALARM
+				|| (transbyte == 0xEC && is_alarm())
+#endif
+				) {
 			state = S_SEARCHROM;
 			xmitlen = 7;
 			transbyte = addr[7];

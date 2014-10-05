@@ -15,6 +15,8 @@
  *  GNU General Public License (included; see the file LICENSE)
  *  for more details.
  */
+#include "features.h"
+
 /* Debugging */
 #ifdef HAVE_UART
 #include "uart.h"
@@ -90,6 +92,13 @@ void init_state(void);
 
 /* Called to process commands. You implement this! */
 void do_command(u_char cmd);
+
+#ifndef SKIP_SEARCH
+#ifndef SKIP_SEARCHALARM
+/* Called to determine if the device is in an alarm state. */
+u_char is_alarm(void);
+#endif
+#endif
 /*
    Your code can do any one of:
    * call xmit|recv_bit|byte, as required
