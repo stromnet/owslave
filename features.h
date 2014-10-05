@@ -22,11 +22,12 @@
  *   as it wont delay the 1-wire interrupts. This is especially true if large
  *   amounts of data are output (pin debug and edge debug on!)
  */
-#define HAVE_UART
+//#define HAVE_UART
 #define POLLED_TRANSMITTER
 #define BAUDRATE 57600
 #define F_CPU 16000000		// cortex-M0 currently at 48000000
 // #define SKIP_SEARCH		// omits search rom code (single slave only!)
+//#define SKIP_SEARCHALARM // omits is_alarm code
 
 /* some basic typedef, that should be very portable */
 typedef unsigned char u_char;

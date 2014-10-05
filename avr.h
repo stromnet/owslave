@@ -187,9 +187,16 @@ static inline timer_t AVR_ATmega8_owtimer(void) { return TCNT0; }
 
 // use INT0 pin (PORT D2)
 static inline void AVR_ATmega8_owpin_setup(void) { PORTD &= ~4; DDRD &= ~4; }
+/* We can save 8 flash bytes by using defines for these simple ones instead;
+ * a sbi/cli is smaller than the rcall+ret overhead which gcc seems to adds, even
+ * though we force inline! 
 static inline void AVR_ATmega8_owpin_low(void) { DDRD |= 4; }
 static inline void AVR_ATmega8_owpin_hiz(void) { DDRD &= ~4; }
 static inline u_char AVR_ATmega8_owpin_value(void) { return PIND & 4; }
+*/
+#define AVR_ATmega8_owpin_low() DDRD |= 4
+#define AVR_ATmega8_owpin_hiz() DDRD &= ~4
+#define AVR_ATmega8_owpin_value() (PIND & 4)
 
 #elif defined (__AVR_ATmega32__)
 #define __CPU	AVR_ATmega32
