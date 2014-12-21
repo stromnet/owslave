@@ -43,11 +43,17 @@ help:
 # device codes
 ds2408_CODE=29
 ds2423_CODE=1D
+ds2406_CODE=12
 
-DEVNAME=ds2423
+# for ds2423
+#CFLAGS+=-DANALOG -DNCOUNTERS=6
+
+# For ds2406
+#CFLAGS+=-DWITH_PWM
+
 all: $(DEVNAME).hex $(DEVNAME).lss $(DEVNAME).bin
 
-ds2408 ds2423:
+ds2408 ds2423 ds2406:
 	 @$(MAKE) $@_dev
 
 %_burn: %_dev
@@ -67,7 +73,7 @@ else
 endif
 #  -I/usr/local/avr/include -B/usr/local/avr/lib
 #-------------------
-CFLAGS+=-DANALOG -DNCOUNTERS=6
+
 %.o : %.c Makefile $(wildcard *.h)
 	$(CC) $(CFLAGS) -c $<
 $(DEVNAME).out : onewire.o $(DEVNAME).o $(UART)
