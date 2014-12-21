@@ -114,6 +114,7 @@ static inline void get_ow_address(u_char *addr)
 	 // Wait for EPROM circuitry to be ready
 	while(EECR & (1<<EEPE));
 
+	EEARH=0;
 	for (i=8; i;) {
 		i--;
 		EEARL = 7-i;			// set EPROM Address
