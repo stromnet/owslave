@@ -11,6 +11,10 @@
 // debugging only
 #include "uart.h"
 
+#ifdef USE_WATCHDOG
+#include <avr/wdt.h>
+#endif
+
 // AVRs use 8 bit timers
 typedef unsigned char timer_t;
 
@@ -104,6 +108,26 @@ typedef unsigned char timer_t;
 #endif
 #ifndef EEMPE
 #define EEMPE EEMWE
+#endif
+
+#ifdef USE_WATCHDOG
+/* Recommended watchdog init, as per avr/wdt.h.
+ * get_mcusr will be called from .init3, i.e. before main
+ * is called.
+ */
+
+uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
+
+void get_mcusr(void) \
+	__attribute__((naked)) \
+	__attribute__((section(".init3")));
+
+void get_mcusr(void)
+{
+	mcusr_mirror = MCUSR;
+	MCUSR = 0;
+	wdt_disable();
+}
 #endif
 
 // this works for all AVRs, getting address from address 0..7
@@ -286,5 +310,20 @@ static inline u_char AVR_ATmega168_owpin_value(void) { return PIND & 4; }
 #error "Your AVR is not supported (or at least not tested)"
 #endif
 
+
+#ifdef USE_WATCHDOG
+// same for all AVR devices
+// Extra level of expansion required..
+#define _CPU_COMPOSE(cpu, fn) _COMPOSE(cpu, fn)
+static inline void _CPU_COMPOSE(__CPU, _watchdog_reset) (void) {
+	wdt_reset();
+}
+
+static inline void _CPU_COMPOSE(__CPU, _watchdog_setup) (void)
+{
+	// 1s watchdog delay
+	wdt_enable(WDTO_1S);
+}
+#endif
 
 #endif /* AVR_H_ */

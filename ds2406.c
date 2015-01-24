@@ -127,6 +127,10 @@ static u_char idle_actions;
 #define IDLE_ACTION_WRITE_EEPROM  0x04
 static u_char eeprom_wr_pos;
 
+#ifdef USE_WATCHDOG
+extern uint8_t mcusr_mirror;
+#endif
+
 /**
  * Memory is layed out in two identical sections,
  * one page with active configuration, and one scratchpad. The active
@@ -139,6 +143,7 @@ static u_char eeprom_wr_pos;
  *
  * Page0, base 0x0000: active configuration
  * Page1, base 0x0020: scratchpad for configuration
+ * Page2 base  0x0040: mcusr_mirror value on byte 0
  *
  * Page layout (base + offset):
  * 	Addr	Description
@@ -159,6 +164,9 @@ static u_char eeprom_wr_pos;
  * checksum operation is performed on the full scratchpad.
  * If it is valid, the content of the scratchpad will replace the active
  * configuration.
+ *
+ * Page 2 only has byte 0 populated, with the value of the CPUs MCUCSR from boot.
+ * Any write to page 2 addr 0 will clear the register, use this to detect restarts.
  *
  *
  * The operation mode byte (for each channel) has the following meaning:
@@ -380,10 +388,20 @@ void update_config(void) {
 
 	// Enable/disable overflow interrupt on timer1
 	// bit 4 and 1 == enable
-	if((cycle_state & 0x05) != 0)
+	if((cycle_state & 0x05) != 0) {
 		TIMSK|= (1<<TOIE1);
-	else
+#ifdef USE_WATCHDOG
+		// Kill watchdog anti-sleep timer2
+		TCCR2 = 0;
+#endif
+	}
+	else {
 		TIMSK&= ~(1<<TOIE1);
+#ifdef USE_WATCHDOG
+		// Start watchdog anti-sleep timer2
+		TCCR2 = (1 << CS22) | (1 << CS21) | (1 < CS20);
+#endif
+	}
 }
 #endif /* WITH_PWM */
 
@@ -433,6 +451,9 @@ void do_read_memory(int status_memory)
 		while(adr <= 0x000A){ XMIT(active[adr]); adr++; }
 		while(adr > 0x000A && adr < 0x0020) {XMIT(0x00); ++adr;}
 		while(adr >= 0x0020 && adr <= 0x002A) {XMIT(scratchpad[adr - 0x20]); adr++;}
+#endif
+#ifdef USE_WATCHDOG
+		while(adr == 0x0040) {XMIT(mcusr_mirror); ++adr;}
 #endif
 		while(adr <= 0x007F){XMIT(0x00); ++adr;}
 
@@ -496,6 +517,9 @@ void do_write_memory(int status_memory)
 				idle_actions |= IDLE_ACTION_COPY_SCRATCHPAD;
 			}
 #endif
+#ifdef USE_WATCHDOG
+			if(adr == 0x0040) {mcusr_mirror = 0;}
+#endif
 		}
 
 		// First pass, return crc of Cmd, Address, data.
@@ -516,8 +540,6 @@ void do_write_memory(int status_memory)
 		crc = crc16(crc, 0x0); // upper bits always 0
 		recv_byte();
 	}
-
-	set_idle();
 }
 
 void do_channel_access(void)
@@ -720,7 +742,11 @@ void update_idle(u_char bits)
 	}
 #endif
 
-	// Go to idle sleep, saves power
+#ifdef USE_WATCHDOG
+	TCNT2 = 0; // wait for next overflow
+#endif
+
+	// Go to idle sleep, saves 50% power (avg 10mA instead of 20)
 	sleep_cpu();
 }
 
@@ -729,6 +755,12 @@ ISR (TIMER1_OVF_vect)
 {
 	idle_actions|= IDLE_ACTION_UPDATE_CYCLE;
 }
+#endif
+
+#ifdef USE_WATCHDOG
+// Do nothing; we just wake up from the sleep_cpu() instruction and do a loop
+// and execute the wdr before going to sleep again.
+EMPTY_INTERRUPT(TIMER2_OVF_vect);
 #endif
 
 void init_state(void)
@@ -789,6 +821,20 @@ void init_state(void)
 
 	// Set register defaults
 	channel_info = CH_INFO_PWR | CH_INFO_2CH;
+#endif
+	
+#ifdef USE_WATCHDOG
+	// If we have watchdog, we must make sure to wake up within
+	// 1s from sleep, or we'll be restarted.
+	// Lazy-use timer1 for this; with a prescaler of 1024 at 16Mhz, it
+	// will overflow ~every 160ms and wake us up
+	// Timer control is done where PWM is controlled
+	TIMSK|= (1<<TOIE2);
+
+#ifndef WITH_WPM
+	// If no PWM is used, always run timer1
+	TCCR2 = (1 << CS22) | (1 << CS21) | (1 < CS20);
+#endif
 #endif
 
 	// Status default is all 1s (PIO's 1 == off)

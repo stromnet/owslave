@@ -24,6 +24,8 @@
 // some macro magic for the functions
 #define _COMPOSE(c, f)		c ## f
 #define _SETUP(c)			_COMPOSE(c, _setup)
+#define _WATCHDOG_SETUP(c)			_COMPOSE(c, _watchdog_setup)
+#define _WATCHDOG_RESET(c)			_COMPOSE(c, _watchdog_reset)
 #define _MASK_OWPIN(c)		_COMPOSE(c, _mask_owpin)
 #define _UNMASK_OWPIN(c)	_COMPOSE(c, _unmask_owpin)
 #define _SET_OWTIMEOUT(c)	_COMPOSE(c, _set_owtimeout)
@@ -41,6 +43,8 @@
  *   unmask usually acknowledges the interrupt as-well
  */
 #define cpu_setup		_SETUP(__CPU)
+#define watchdog_setup		_WATCHDOG_SETUP(__CPU)
+#define watchdog_reset _WATCHDOG_RESET(__CPU)
 #define mask_owpin		_MASK_OWPIN(__CPU)
 #define unmask_owpin	_UNMASK_OWPIN(__CPU)
 #define set_owtimeout	_SET_OWTIMEOUT(__CPU)
@@ -161,8 +165,12 @@ void next_command(void)
 static void wait_for_completion_and_check_for_errors(void)
 {
 	/* wait for receive or transmit to end, call background task while waiting */
-	while(state & (S_RECV | S_XMIT))
+	while(state & (S_RECV | S_XMIT)) {
+#ifdef USE_WATCHDOG
+		watchdog_reset();
+#endif
 		update_idle(bitcount);
+	}
 
 	cli();
 	if(!(state & S_OPCODE)) {
@@ -257,8 +265,12 @@ void recv_byte(void)
  */
 static u_char recv_any_in(void)
 {
-	while(state & S_RECV)
+	while(state & S_RECV) {
+#ifdef USE_WATCHDOG
+		watchdog_reset();
+#endif
 		update_idle(bitcount);
+	}
 
 	if ((state & S_MASK) != S_CMD_IDLE)
 		longjmp(end_out, 1);
@@ -346,6 +358,9 @@ int main(void)
 	cpu_setup();
 	init_debug();
 	owpin_setup();
+#ifdef USE_WATCHDOG
+	watchdog_setup();
+#endif
 
 #ifdef DBGPIN
 	OWPORT &= ~(1 << DBGPIN);
@@ -383,6 +398,9 @@ int main(void)
 		for(x=0;x<100000ULL;x++)
 #endif
 		 {
+#ifdef USE_WATCHDOG
+			watchdog_reset();
+#endif
 			if((state & S_MASK) == S_HAS_OPCODE)
 				do_command(transbyte);
 
@@ -671,5 +689,4 @@ OW_PINCHANGE_ISR()
 		set_idle();
 	}		
 }
-
 
