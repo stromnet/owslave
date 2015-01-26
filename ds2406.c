@@ -50,7 +50,7 @@
 #define C_READ_STATUS		0xAA 
 #define C_CHANNEL_ACCESS	0xF5
 
-u_char alarm;
+static u_char alarm;
 
 #define STATUS_PWR	0x80
 #define STATUS_PIO_B 0x40
@@ -217,7 +217,48 @@ extern uint8_t mcusr_mirror;
 #define CFG_PIOB		0x0000
 #define CFG_PIOA		0x0001
 
+static void inline init_pwm_timer(void) {
+	// This expects 16Mhz crystal
+	// We use 244HZ PWM using timer1, with output on OC1A and OC1B
+
+	// WGM1 3:0 = 0101 = PWM, fast 8bit(TOP=0x00ff)
+	// F_PWM = Clock / ( Prescaler * (TOP+1)) 
+	// 256 prescaler => PWM 244Hz @ 16Mhz
+	TCCR1A = (1 << WGM10); 
+	// Note that TCCR1B is used to enable/disable via sleep
+}
+static void inline enable_pwm_timer(void) {
+	TCCR1B =(1<< WGM12) | (1<<CS12);
+}
+static void inline disable_pwm_timer(void) {
+	TCCR1B = 0;
+}
 #endif /* WITH_PWM */
+
+#ifdef USE_WATCHDOG
+static void inline init_watchdog_wakeup_timer(void) {
+	// If we have watchdog, we must make sure to wake up within
+	// 1s from sleep, or we'll be restarted.
+	// Lazy-use timer1 for this; with a prescaler of 1024 at 16Mhz, it
+	// will overflow ~every 160ms and wake us up
+	// Timer control is done where PWM is controlled
+	TIMSK2 |= (1<<TOIE2);
+}
+static void inline enable_watchdog_wakeup_timer(void) {
+# if defined(__AVR_ATmega8__)
+	TCCR2 = (1 << CS22) | (1 << CS21) | (1 < CS20);
+# elif defined(__AVR_ATmega88A__)
+	TCCR2B = (1 << CS22) | (1 << CS21) | (1 < CS20);
+# endif
+}
+static void inline disable_watchdog_wakeup_timer(void) {
+# if defined(__AVR_ATmega8__)
+	TCCR2 = 0;
+# elif defined(__AVR_ATmega88A__)
+	TCCR2B = 0;
+# endif
+}
+#endif
 
 
 void update_pio(void) ;
@@ -291,6 +332,24 @@ void update_pio(void) {
 		status &= ~STATUS_PIO_A;
 
 		channel_info &= ~CH_INFO_PIO_A_SENSED;
+	}
+
+	// Shut down timer if not in use
+	if(TCCR1A & ((1<<COM1B1) | (1<<COM1A1))) {
+#ifdef WITH_PWM
+		enable_pwm_timer();
+#endif
+#ifdef USE_WATCHDOG
+		disable_watchdog_wakeup_timer();
+#endif
+	} else {
+		// Disable timer, not in use
+#ifdef WITH_PWM
+		disable_pwm_timer();
+#endif
+#ifdef USE_WATCHDOG
+		enable_watchdog_wakeup_timer();
+#endif
 	}
 }
 
@@ -386,21 +445,12 @@ void update_config(void) {
 	if(active[CFG_TRX] & 0xC0)
 		update_pio();
 
-	// Enable/disable overflow interrupt on timer1
-	// bit 4 and 1 == enable
-	if((cycle_state & 0x05) != 0) {
-		TIMSK|= (1<<TOIE1);
-#ifdef USE_WATCHDOG
-		// Kill watchdog anti-sleep timer2
-		TCCR2 = 0;
-#endif
-	}
-	else {
-		TIMSK&= ~(1<<TOIE1);
-#ifdef USE_WATCHDOG
-		// Start watchdog anti-sleep timer2
-		TCCR2 = (1 << CS22) | (1 << CS21) | (1 < CS20);
-#endif
+	// Enable/disable overflow interrupt on timer1, if 
+	// cycle-mode is active on either channel
+	if((cycle_state & 0x11)) {
+		TIMSK1 |= (1<<TOIE1);
+	} else {
+		TIMSK1 &= ~(1<<TOIE1);
 	}
 }
 #endif /* WITH_PWM */
@@ -774,16 +824,7 @@ void init_state(void)
 	alarm = 0;
 
 #ifdef WITH_PWM
-	// atmega8 only, @ 16Mhz
-	// We use 244HZ PWM using timer1, with output on OC1A and OC1B
-	
-	// WGM1 3:0 = 0101 = PWM, fast 8bit(TOP=0x00ff)
-	// F_PWM = Clock / ( Prescaler * (TOP+1)) 
-	TCCR1B =
-		(1<< WGM12)
-		| (1<<CS12); // 256 prescaler => PWM 244Hz @ 16Mhz
-	TCCR1A = (1 << WGM10); 
-	// COM1A1 and COM1B1 is used to turn on PWM outputs, done later.
+	init_pwm_timer();
 
 	// Load startup configuration from EEPROM. 1W address is at 0-7,
 	// we use 8-18
@@ -824,23 +865,15 @@ void init_state(void)
 #endif
 	
 #ifdef USE_WATCHDOG
-	// If we have watchdog, we must make sure to wake up within
-	// 1s from sleep, or we'll be restarted.
-	// Lazy-use timer1 for this; with a prescaler of 1024 at 16Mhz, it
-	// will overflow ~every 160ms and wake us up
-	// Timer control is done where PWM is controlled
-	TIMSK|= (1<<TOIE2);
-
-#ifndef WITH_WPM
-	// If no PWM is used, always run timer1
-	TCCR2 = (1 << CS22) | (1 << CS21) | (1 < CS20);
-#endif
+	init_watchdog_wakeup_timer();
+# ifndef WITH_WPM
+	enable_watchdog_wakeup_timer();
+# endif
 #endif
 
 	// Status default is all 1s (PIO's 1 == off)
 	// will call update_pio
 	update_status(0xFF);
-	update_pio();
 
 #ifdef WITH_PWM
 	copy_scratchpad();
