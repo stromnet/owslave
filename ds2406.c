@@ -36,10 +36,22 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#ifdef WITH_PWM
+#include <avr/eeprom.h>
+#endif
+
+#ifdef USE_WATCHDOG
+#include <avr/wdt.h>
+#endif
+
 #include "onewire.h"
 #include "features.h"
 
-#ifndef __AVR_ATmega8__
+#if defined(__AVR_ATmega8__)
+#define TIMSK1 TIMSK // Location of bit TOIE1
+#define TIMSK2 TIMSK // Location of bit TOIE2
+#elif defined(__AVR_ATmega88A__)
+#else
 #error "Your AVR is not supported (or at least not tested) with this device"
 #endif
 
@@ -770,11 +782,10 @@ void update_idle(u_char bits)
 	}
 
 	if(idle_actions & IDLE_ACTION_WRITE_EEPROM) {
-		if(!(EECR & (1<<EEWE))) {
-			EEARL = eeprom_wr_pos + 8;
-			EEDR = active[eeprom_wr_pos];
-			EECR |= (1<<EEMWE);	// Prepare eeprom write 
-			EECR |= (1<<EEWE);	// Start eeprom write
+		if(eeprom_is_ready()) {
+			eeprom_write_byte(
+					(uint8_t*)(eeprom_wr_pos + 8),
+					active[eeprom_wr_pos]);
 
 			++eeprom_wr_pos;
 			if(eeprom_wr_pos == MEM_LENGTH) {
@@ -828,12 +839,8 @@ void init_state(void)
 
 	// Load startup configuration from EEPROM. 1W address is at 0-7,
 	// we use 8-18
-	while(EECR & (1<<EEWE));
-	for (i=0; i < MEM_LENGTH; i++) {
-		EEARL = 8 + i;				// set EPROM Address
-		EECR |= (1<<EERE);	// Start eeprom read by writing EERE
-		scratchpad[i] = EEDR;// Return data from data register
-	}
+	while(!eeprom_is_ready());
+	eeprom_read_block(&scratchpad, (uint8_t*)8, MEM_LENGTH);
 
 	if(check_scratchpad()) {
 		// Invalid EEPROM data, probably not set.
