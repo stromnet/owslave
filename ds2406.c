@@ -125,6 +125,10 @@ static u_char
 	;
 
 
+#ifndef SKIP_MCUSR_READOUT
+extern uint8_t mcusr_mirror;
+#endif
+
 #ifdef WITH_PWM
 
 /* Memory, active & scratchpad */
@@ -138,10 +142,6 @@ static u_char idle_actions;
 #define IDLE_ACTION_UPDATE_CYCLE  0x02
 #define IDLE_ACTION_WRITE_EEPROM  0x04
 static u_char eeprom_wr_pos;
-
-#ifndef SKIP_MCUSR_READOUT
-extern uint8_t mcusr_mirror;
-#endif
 
 /**
  * Memory is layed out in two identical sections,
