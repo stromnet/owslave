@@ -1,5 +1,6 @@
 # makefile, written by guido socher
-MCU=atmega8		# ds2423.c won't compile
+MCU=atmega88a
+#MCU=atmega8		# ds2423.c won't compile
 #MCU=attiny13		# ds2423.c and uart.c won't compile (no uart)
 #MCU=attiny84		# uart.c won't compile (no uart)
 #MCU=atmega168
@@ -106,6 +107,6 @@ burn: $(DEVNAME).hex $(DEVNAME).eeprom
 	#avrdude -V -c $(PROG) -p $(MCU_PROG) -U $(PRG).bin
 #-------------------
 clean:
-	rm -f *.o *.map *.out *t.hex
+	rm -f *.o *.map *.out *.hex* *.bin *.lss
 #-------------------
 
