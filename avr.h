@@ -208,7 +208,7 @@ static inline u_char AVR_ATtiny13_owpin_value(void) { return PINB & 2; }
 static inline void AVR_ATmega8_setup(void)
 {
 	// Clock is set via fuse, at least to 8MHz
-	TCCR0 = 0x03;			// Prescaler 1/64
+	TCCR0 = (1 << CS01) | (1 << CS00); // Prescaler 1/64
 	MCUCR |= (1 << ISC00);	// Interrupt on both level changes
 }
 
@@ -236,7 +236,7 @@ static inline u_char AVR_ATmega8_owpin_value(void) { return PIND & 4; }
 static inline void AVR_ATmega88A_setup(void)
 {
 	// Clock is set via fuse, at least to 8MHz
-	TCCR0B = 0x03;			// Prescaler 1/64
+	TCCR0B = (1 << CS01) | (1 << CS00);	// Prescaler 1/64
 	EICRA |= (1 << ISC00);	// Interrupt on both level changes
 }
 
