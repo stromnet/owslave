@@ -826,9 +826,6 @@ EMPTY_INTERRUPT(TIMER2_OVF_vect);
 
 void init_state(void)
 {
-#ifdef WITH_PWM
-	int i;
-#endif
 	set_sleep_mode (SLEEP_MODE_IDLE);
 	sleep_enable();
 

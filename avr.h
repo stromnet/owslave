@@ -150,7 +150,11 @@ static inline void get_ow_address(u_char *addr)
 	u_char i;
 
 	 // Wait for EPROM circuitry to be ready
-	while(EECR & (1<<EEPE));
+	while(EECR & (1<<EEPE)) {
+#ifdef USE_WATCHDOG
+		wdt_reset();
+#endif
+	}
 
 	EEARH=0;
 	for (i=8; i;) {
