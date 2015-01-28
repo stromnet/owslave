@@ -11,8 +11,10 @@
 // debugging only
 #include "uart.h"
 
-#ifdef USE_WATCHDOG
-#include <avr/wdt.h>
+#if defined(USE_WATCHDOG) && defined(SKIP_WATCHDOG_INITIAL_RESET)
+# error USE_WATCHDOG and SKIP_WATCHDOG_INITIAL_RESET are mutually exclusive
+#elif defined(USE_WATCHDOG) || !defined(SKIP_WATCHDOG_INITIAL_RESET)
+# include <avr/wdt.h>
 #endif
 
 // AVRs use 8 bit timers
@@ -110,13 +112,21 @@ typedef unsigned char timer_t;
 #define EEMPE EEMWE
 #endif
 
-#ifdef USE_WATCHDOG
+#if !(defined(SKIP_WATCHDOG_INITIAL_RESET) && defined(SKIP_MCUSR_READOUT))
 /* Recommended watchdog init, as per avr/wdt.h.
  * get_mcusr will be called from .init3, i.e. before main
  * is called.
+ *
+ * Even if watchdog is not used, it is recommended to 
+ * explicitly disable it. Random errors may accidentally enable
+ * it, see http://www.atmel.com/Images/doc2551.pdf.
+ *
+ * To disable this, define SKIP_WATCHDOG_INITIAL_RESET.
+ * To disable mcusr readout, define SKIP_MCUSR_READOUT.
  */
-
+#ifndef SKIP_MCUSR_READOUT
 uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
+#endif
 
 void get_mcusr(void) \
 	__attribute__((naked)) \
@@ -124,9 +134,13 @@ void get_mcusr(void) \
 
 void get_mcusr(void)
 {
+# ifndef SKIP_MCUSR_READOUT
 	mcusr_mirror = MCUSR;
 	MCUSR = 0;
+# endif
+# ifndef SKIP_WATCHDOG_INITIAL_RESET
 	wdt_disable();
+# endif
 }
 #endif
 

@@ -139,7 +139,7 @@ static u_char idle_actions;
 #define IDLE_ACTION_WRITE_EEPROM  0x04
 static u_char eeprom_wr_pos;
 
-#ifdef USE_WATCHDOG
+#ifndef SKIP_MCUSR_READOUT
 extern uint8_t mcusr_mirror;
 #endif
 
@@ -514,7 +514,7 @@ void do_read_memory(int status_memory)
 		while(adr > 0x000A && adr < 0x0020) {XMIT(0x00); ++adr;}
 		while(adr >= 0x0020 && adr <= 0x002A) {XMIT(scratchpad[adr - 0x20]); adr++;}
 #endif
-#ifdef USE_WATCHDOG
+#ifndef SKIP_MCUSR_READOUT
 		while(adr == 0x0040) {XMIT(mcusr_mirror); ++adr;}
 #endif
 		while(adr <= 0x007F){XMIT(0x00); ++adr;}
@@ -579,7 +579,7 @@ void do_write_memory(int status_memory)
 				idle_actions |= IDLE_ACTION_COPY_SCRATCHPAD;
 			}
 #endif
-#ifdef USE_WATCHDOG
+#ifndef SKIP_MCUSR_READOUT
 			if(adr == 0x0040) {mcusr_mirror = 0;}
 #endif
 		}
