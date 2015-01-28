@@ -889,5 +889,19 @@ void init_state(void)
 	PORTB= (1<<PB0) | (1 << PB5)| (1 << PB4)| (1 << PB3);
 	PORTC=0xFF;
 	PORTD=0xFF & ~0x04;
+
+#if defined(__AVR_ATmega88A__)
+	// Mega88A supports power reduction register
+	PRR = (1 << PRTWI) |
+#ifndef USE_WATCHDOG
+			(1 << PRTIM2) |
+#endif
+#ifndef WITH_PWM
+			(1 << PRTIM1) |
+#endif
+			(1 << PRSPI) |
+			(1 << PRUSART0) |
+			(1 << PRADC);
+#endif
 }
 
