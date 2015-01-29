@@ -575,7 +575,8 @@ void do_write_memory(int status_memory)
 		}else{
 #ifdef WITH_PWM
 			// Only writing to scratchpad allowed, ignore rest
-			if(adr >= 0x0020 && adr <= 0x002A) scratchpad[adr - 0x20] = b;
+			if(adr >= 0x0020 && adr <= 0x002A)
+				scratchpad[adr - 0x20] = b;
 
 			if(adr == 0x002A) {
 				// CRC16H written, transfer to active
@@ -583,7 +584,9 @@ void do_write_memory(int status_memory)
 			}
 #endif
 #ifndef SKIP_MCUSR_READOUT
-			if(adr == 0x0040) {mcusr_mirror = 0;}
+			if(adr == 0x0040) {
+				mcusr_mirror = 0;
+			}
 #endif
 		}
 
@@ -832,7 +835,7 @@ void init_state(void)
 	set_sleep_mode (SLEEP_MODE_IDLE);
 	sleep_enable();
 
-	alarm = 0;
+	alarm=0;
 
 #ifdef WITH_PWM
 	init_pwm_timer();
