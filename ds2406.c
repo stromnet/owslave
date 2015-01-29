@@ -352,7 +352,10 @@ void update_pio(void) {
 		enable_pwm_timer();
 #endif
 #ifdef USE_WATCHDOG
-		disable_watchdog_wakeup_timer();
+		/* Disable watchdog wakeup timer only if we're going
+		 * to get interupts from this timer */
+		if(TIMSK1 & (1 << TOIE1))
+			disable_watchdog_wakeup_timer();
 #endif
 	} else {
 		// Disable timer, not in use
@@ -457,7 +460,7 @@ void update_config(void) {
 	if(active[CFG_TRX] & 0xC0)
 		update_pio();
 
-	// Enable/disable overflow interrupt on timer1, if 
+	// Enable/disable overflow interrupt on timer1, if
 	// cycle-mode is active on either channel
 	if((cycle_state & 0x11)) {
 		TIMSK1 |= (1<<TOIE1);
