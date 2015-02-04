@@ -611,6 +611,22 @@ OW_PINCHANGE_ISR()
 	if (st & S_XMIT) {
 		if ((transbyte & 0x01) == 0) {
 			mask_owpin();
+			/* Note:
+			 * It takes us 50 clock cycles of ISR code to get here, + 4(+4 if sleeping).
+			 * in total 58 cycles. At 8Mhz that is 58/8=7.25uS
+			 * After that we have 3uS margin before DS2480B master samples..
+			 * or a bit more if flexible mode is used but.
+			 *
+			 * However, a write-low timeslot from master is 57uS +3uS recovery.
+			 * That gives us 3uS to detect and execute the pin-high ISR before the pin goes low,
+			 * at which time we should have the pin low after 11uS (25uS in flex mode).
+			 * 
+			 * The pin-high ISR in non-reset state takes 84+4+4 cycles in current compiled version...
+			 * On 8Mhz that is 11.5uS..
+			 * This means that a master-write-0 follwoed by a master-read where we want to write a low,
+			 * we will start pulling low 11.5-3+7.25 = 15.75uS from leading low edge. Works in flex
+			 * mode but not in standard.
+			 */
 			owpin_low();		// send zero
 			set_owtimeout(T_XMIT);
 			state |= S_XMIT2;

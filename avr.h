@@ -71,12 +71,19 @@ typedef unsigned char timer_t;
 	#define T_SAMPLE T_(15)-1
 #elif F_CPU > 9600000
 	#define T_SAMPLE T_(15)-2
+#elif F_CPU >= 8000000
+	#define T_SAMPLE T_(8) // scoped to ~31 uS after read edge
+	#define T_XMIT T_(16) // scoped to~30uS after own edge
+// NOTE: we have issue with master write-low + own write-low following.
+// see notes in S_XMIT state OW_PINCHANGE_ISR in onewire.c
 #else
 	#warning "This will probably only work for relatively slow masters!"
 	#define T_SAMPLE T_(25)-1	// only tested for atmega32, works but out of specification!
 #endif
 
 #ifndef T_XMIT
+// NOTE: This is too long on most of the above, and makes
+// the CPU pull down too long => we fail to read next slot
 #define T_XMIT T_(60)-4			// overhead (measured w/ scope on ATmega168)
 #endif
 #endif
@@ -240,7 +247,8 @@ static inline u_char AVR_ATmega8_owpin_value(void) { return PIND & 4; }
 static inline void AVR_ATmega88A_setup(void)
 {
 	// Clock is set via fuse, at least to 8MHz
-	TCCR0B = (1 << CS01) | (1 << CS00);	// Prescaler 1/64
+	TCCR0B = (1 << CS01) | (1 << CS00);     // Prescaler 1/64
+
 	EICRA |= (1 << ISC00);	// Interrupt on both level changes
 }
 

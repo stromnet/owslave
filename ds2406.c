@@ -230,12 +230,12 @@ static u_char eeprom_wr_pos;
 #define CFG_PIOA		0x0001
 
 static void inline init_pwm_timer(void) {
-	// This expects 16Mhz crystal
-	// We use 244HZ PWM using timer1, with output on OC1A and OC1B
+	// This expects 8/16Mhz crystal
+	// We use 122Hz (@8Mhz)/244Hz (@16Mhz) PWM using timer1, with output on OC1A and OC1B
 
 	// WGM1 3:0 = 0101 = PWM, fast 8bit(TOP=0x00ff)
 	// F_PWM = Clock / ( Prescaler * (TOP+1)) 
-	// 256 prescaler => PWM 244Hz @ 16Mhz
+	// 256 prescaler => PWM 244Hz @ 16Mhz, 122Hz @ 8Mhz
 	TCCR1A = (1 << WGM10); 
 	// Note that TCCR1B is used to enable/disable via sleep
 }
@@ -252,7 +252,7 @@ static void inline init_watchdog_wakeup_timer(void) {
 	// If we have watchdog, we must make sure to wake up within
 	// 1s from sleep, or we'll be restarted.
 	// Lazy-use timer1 for this; with a prescaler of 1024 at 16Mhz, it
-	// will overflow ~every 160ms and wake us up
+	// will overflow ~every 160ms (320 @ 8Mhz) and wake us up
 	// Timer control is done where PWM is controlled
 	TIMSK2 |= (1<<TOIE2);
 }
@@ -422,6 +422,7 @@ void update_config_ch(u_char ch_offset, volatile uint16_t*ocr_register) {
 	}else{
 		cycle_state&= ~(1 << ch_offset);
 		if(mode == 0x00) {
+			// TODO: 0x00 in 8Mhz is not off..
 			// Steady mode, set MIN/SET point
 			*ocr_register = active[ch_offset + CFG_MIN_DUTY];
 		}
@@ -892,7 +893,7 @@ void init_state(void)
 
 	// Power usage, enable pull-ups on all unused pins.
 	// In idle-sleep mode, this totals on 11.5mA instead of 14.0mA
-	PORTB= (1<<PB0) | (1 << PB5)| (1 << PB4)| (1 << PB3);
+	PORTB= (1 << PB5) | (1 << PB4) | (1 << PB3) | (1<<PB0);
 	PORTC=0xFF;
 	PORTD=0xFF & ~0x04;
 
